@@ -9,6 +9,7 @@ import urllib2
 from datetime import datetime
 from bs4 import BeautifulSoup
 
+
 #### FUNCTIONS 1.0
 
 def validateFilename(filename):
@@ -37,23 +38,19 @@ def validateFilename(filename):
 
 def validateURL(url):
     try:
-        r = urllib2.urlopen(url)
+        r = requests.get(url, headers=ua)
         count = 1
-        while r.getcode() == 500 and count < 4:
+        while r.status_code == 500 and count < 4:
             print ("Attempt {0} - Status code: {1}. Retrying.".format(count, r.status_code))
             count += 1
-            r = urllib2.urlopen(url)
+            r = requests.get(url,  headers=ua)
         sourceFilename = r.headers.get('Content-Disposition')
         if sourceFilename:
             ext = os.path.splitext(sourceFilename)[1].replace('"', '').replace(';', '').replace(' ', '')
-        elif not sourceFilename:
+        else:
             ext = os.path.splitext(url)[1]
-        if 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' in r.headers.get('content-type'):
-            ext = '.xlsx'
-        elif 'application/vnd.ms-excel' in r.headers.get('content-type'):
-            ext = '.xls'
-        validURL = r.getcode() == 200
-        validFiletype = ext.lower() in ['.csv', '.xls', '.xlsx', '.pdf']
+        validURL = r.status_code == 200
+        validFiletype = ext.lower() in ['.csv', '.xls', '.xlsx']
         return validURL, validFiletype
     except:
         print ("Error validating URL.")
@@ -84,32 +81,34 @@ def convert_mth_strings ( mth_string ):
         mth_string = mth_string.replace(k, v)
     return mth_string
 
+
 #### VARIABLES 1.0
 
-entity_id = "FTRM3X_SRNFT_gov"
-url = "http://www.srft.nhs.uk/media-centre/publications/25k-reports/"
+entity_id = "FTTAHX_SHASCNFT_gov"
+url = "https://shsc.nhs.uk/about-us/statements-and-reporting/expenditure-over-25000/"
 errors = 0
 data = []
-
+ua = {'user-agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/62.0.3202.62 Safari/537.36'}
 
 #### READ HTML 1.0
+import requests
+html = requests.get(url, headers=ua)
+soup = BeautifulSoup(html.text, "lxml")
 
-html = urllib2.urlopen(url)
-soup = BeautifulSoup(html, 'lxml')
 
 #### SCRAPE DATA
 
-links = soup.find_all('tr')[1:]
-for link in links:
-    title = link.find_all('td')[2]
-    file_title = title.find('a')['title']
-    url = 'http://www.srft.nhs.uk'+title.find('a')['href']
-    csvMth = file_title.split('-')[1][:2]
-    csvYr = file_title[:4]
+blocks = soup.find('div', 'tile dasf ').find_all('a')
+for block in blocks:
+    title = block.text.strip()
+    url = block['href']
+    csvMth = title[:3]
+    csvYr = title[-4:]
+    if 'Exp' in csvMth:
+        csvMth = 'Y1'
+        csvYr = url.split('/11/')[-1][:4]
     csvMth = convert_mth_strings(csvMth.upper())
     data.append([csvYr, csvMth, url])
-
-
 
 #### STORE DATA 1.0
 
@@ -132,4 +131,3 @@ if errors > 0:
 
 
 #### EOF
-
